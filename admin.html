@@ -73,13 +73,17 @@
         function detectBeat() {
             if (!isBeatMode) return;
             analyser.getByteFrequencyData(dataArray);
+            
+            // Тек басс жиіліктерін тексереміз (0-4 индекс)
             let sum = 0;
-            for (let i = 0; i < 5; i++) sum += dataArray[i]; 
-            let avg = sum / 5;
+            for (let i = 0; i < 4; i++) sum += dataArray[i]; 
+            let avg = sum / 4;
 
-            if (avg > 185) { // Сезімталдық: 170 (жоғары) - 200 (төмен)
+            // Сезімталдық 165 - бұл өте жақсы көрсеткіш
+            if (avg > 165) { 
                 sendFlash();
-                setTimeout(detectBeat, 200); // Интервал
+                // 150ms кідіріс - фонариктер тым жиі (стробоскоп сияқты) болмауы үшін
+                setTimeout(detectBeat, 150); 
             } else {
                 requestAnimationFrame(detectBeat);
             }
