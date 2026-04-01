@@ -1,61 +1,78 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guest Beat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Magic Show Client</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { margin: 0; background: #000; color: #fff; text-align: center; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; }
-        #status { font-size: 20px; color: gold; }
+        body { margin: 0; background: #000; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: 'Segoe UI', sans-serif; transition: background 0.1s; overflow: hidden; text-align: center; }
+        .photo-container { width: 180px; height: 180px; border-radius: 50%; border: 4px solid #ff0055; overflow: hidden; margin-bottom: 20px; box-shadow: 0 0 25px rgba(255, 0, 85, 0.6); display: inline-block; }
+        .photo-container img { width: 100%; height: 100%; object-fit: cover; }
+        .container { padding: 20px; }
+        h1 { font-size: 24px; margin: 10px 0; letter-spacing: 2px; }
+        p { font-size: 15px; opacity: 0.8; margin-bottom: 25px; line-height: 1.4; }
+        #startBtn { padding: 18px 35px; font-size: 18px; border-radius: 50px; border: none; background: #ff0055; color: white; cursor: pointer; font-weight: bold; text-transform: uppercase; box-shadow: 0 0 20px rgba(255, 0, 85, 0.4); }
+        #status { margin-top: 20px; font-size: 14px; color: #00ffcc; display: none; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div id="status">МЕДЕТТІ КҮТІҢІЗ...</div>
+    <div class="container" id="mainUI">
+        <div class="photo-container"><img src="medet_photo.png" alt="Medet"></div>
+        <h1>MAGIC EVENT SHOW</h1>
+        <p>Нажмите кнопку, чтобы стать частью<br>светового перформанса</p>
+        <button id="startBtn">ВОЙТИ В ШОУ</button>
+        <div id="status">Подключение...</div>
+    </div>
 
     <script>
-        const ADMIN_ID = 'medet_show_master_2026';
+        const ADMIN_ID = 'medet_show_master_2026'; 
         const peer = new Peer();
         let videoTrack = null;
+        let isBeatMode = false;
         let audioContext, analyser, dataArray;
-        let isBeatRunning = false;
 
-        // Камераға (фонарикке) рұқсат алу
-        async function initCamera() {
+        document.getElementById('startBtn').onclick = async () => {
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('status').style.display = 'block';
+
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 videoTrack = stream.getVideoTracks()[0];
-            } catch (e) { console.log("Фонарик жоқ, тек экран жанады"); }
-        }
-
-        const conn = peer.connect(ADMIN_ID);
-        conn.on('open', () => {
-            document.getElementById('status').innerText = "СІЗ ШОУДА СІЗ!";
-            initCamera();
-        });
-
-        conn.on('data', async (data) => {
-            if (data === 'FLASH') {
-                triggerFlash();
-            } else if (data === 'START_BEAT') {
-                startAudioAnalysis();
-            } else if (data === 'STOP_BEAT') {
-                isBeatRunning = false;
-                document.getElementById('status').innerText = "БИТ ТОҚТАТЫЛДЫ";
+                document.getElementById('status').innerText = "Доступ получен. Соединение...";
+            } catch (e) {
+                document.getElementById('status').innerText = "Режим: Экранная вспышка";
             }
-        });
 
-        function triggerFlash() {
-            document.body.style.backgroundColor = 'white';
+            const conn = peer.connect(ADMIN_ID);
+            conn.on('open', () => {
+                document.getElementById('status').innerText = "ВЫ В ИГРЕ! Не закрывайте экран.";
+            });
+
+            conn.on('data', async (data) => {
+                if (data === 'FLASH') {
+                    runFlashEffect();
+                } else if (data === 'START_BEAT_LISTEN') {
+                    startMusicAnalysis();
+                } else if (data === 'STOP_BEAT_LISTEN') {
+                    isBeatMode = false;
+                }
+            });
+        };
+
+        async function runFlashEffect() {
             if (videoTrack) {
-                videoTrack.applyConstraints({ advanced: [{ torch: true }] }).catch(e=>{});
-                setTimeout(() => { videoTrack.applyConstraints({ advanced: [{ torch: false }] }).catch(e=>{}); }, 200);
+                try {
+                    await videoTrack.applyConstraints({ advanced: [{ torch: true }] });
+                    setTimeout(() => { videoTrack.applyConstraints({ advanced: [{ torch: false }] }); }, 200);
+                } catch (err) {}
             }
+            document.body.style.backgroundColor = 'white';
             setTimeout(() => { document.body.style.backgroundColor = 'black'; }, 200);
         }
 
-        async function startAudioAnalysis() {
-            if (isBeatRunning) return;
+        async function startMusicAnalysis() {
+            if (isBeatMode) return;
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -64,24 +81,21 @@
                 source.connect(analyser);
                 analyser.fftSize = 256;
                 dataArray = new Uint8Array(analyser.frequencyBinCount);
-                isBeatRunning = true;
-                document.getElementById('status').innerText = "МУЗЫКАҒА ҚОСЫЛДЫҢЫЗ!";
+                isBeatMode = true;
                 detectBeat();
-            } catch (err) {
-                alert("Микрофонға рұқсат беріңіз!");
-            }
+            } catch (err) { console.log("Микрофон ошибка"); }
         }
 
         function detectBeat() {
-            if (!isBeatRunning) return;
+            if (!isBeatMode) return;
             analyser.getByteFrequencyData(dataArray);
             let sum = 0;
-            for (let i = 0; i < 5; i++) sum += dataArray[i]; 
+            for (let i = 0; i < 5; i++) sum += dataArray[i];
             let avg = sum / 5;
 
-            if (avg > 190) { // Сезімталдық (170-200 арасы)
-                triggerFlash();
-                setTimeout(detectBeat, 200); // Өте жиі жанбауы үшін
+            if (avg > 185) { // Чувствительность
+                runFlashEffect();
+                setTimeout(detectBeat, 250); 
             } else {
                 requestAnimationFrame(detectBeat);
             }
